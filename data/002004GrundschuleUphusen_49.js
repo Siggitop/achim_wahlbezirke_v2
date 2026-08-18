@@ -1,0 +1,1 @@
+var json_002004GrundschuleUphusen_49 = {"type":"FeatureCollection","name":"002004GrundschuleUphusen_49","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Grundschule Uphusen"},"geometry":{"type":"Point","coordinates":[8.967991476690937,53.030250169202397]}}]}

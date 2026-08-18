@@ -1,0 +1,1 @@
+var json_027SchtzenvereinEmbsen_41 = {"type":"FeatureCollection","name":"027SchtzenvereinEmbsen_41","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Schützenverein Embsen (Feuerwehr)"},"geometry":{"type":"Point","coordinates":[9.0282888056734,53.031628969845997]}}]}

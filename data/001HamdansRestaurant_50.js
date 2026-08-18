@@ -1,0 +1,1 @@
+var json_001HamdansRestaurant_50 = {"type":"FeatureCollection","name":"001HamdansRestaurant_50","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Hamdans Restaurant"},"geometry":{"type":"Point","coordinates":[8.926814162073804,53.010786605315609]}}]}

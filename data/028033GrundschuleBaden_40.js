@@ -1,0 +1,1 @@
+var json_028033GrundschuleBaden_40 = {"type":"FeatureCollection","name":"028033GrundschuleBaden_40","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Grundschule Baden"},"geometry":{"type":"Point","coordinates":[9.088066726691293,52.999794702825717]}}]}

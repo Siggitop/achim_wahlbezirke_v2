@@ -1,0 +1,1 @@
+var json_012014GamMa_46 = {"type":"FeatureCollection","name":"012014GamMa_46","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Gymnasium am Markt"},"geometry":{"type":"Point","coordinates":[9.037603564695404,53.012700302668875]}}]}

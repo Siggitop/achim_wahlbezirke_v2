@@ -1,0 +1,1 @@
+var json_026SchtzenhausAchim_42 = {"type":"FeatureCollection","name":"026SchtzenhausAchim_42","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Schützenhaus Achim"},"geometry":{"type":"Point","coordinates":[9.040477468648893,53.02165542076488]}}]}

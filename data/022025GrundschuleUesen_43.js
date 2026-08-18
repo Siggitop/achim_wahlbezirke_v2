@@ -1,0 +1,1 @@
+var json_022025GrundschuleUesen_43 = {"type":"FeatureCollection","name":"022025GrundschuleUesen_43","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Grundschule Uesen"},"geometry":{"type":"Point","coordinates":[9.049368067608984,53.001936540969865]}}]}

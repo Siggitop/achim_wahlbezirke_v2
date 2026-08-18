@@ -1,0 +1,1 @@
+var json_005007GrundschuleBierden_48 = {"type":"FeatureCollection","name":"005007GrundschuleBierden_48","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Grundschule Bierden"},"geometry":{"type":"Point","coordinates":[9.012002761645567,53.01328472926506]}}]}

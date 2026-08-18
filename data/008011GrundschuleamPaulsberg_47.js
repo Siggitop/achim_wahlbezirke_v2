@@ -1,0 +1,1 @@
+var json_008011GrundschuleamPaulsberg_47 = {"type":"FeatureCollection","name":"008011GrundschuleamPaulsberg_47","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Grundschule am Paulsberg"},"geometry":{"type":"Point","coordinates":[9.028883537533702,53.014145958847834]}}]}

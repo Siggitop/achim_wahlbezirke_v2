@@ -1,0 +1,1 @@
+var json_019021IGSAchim_44 = {"type":"FeatureCollection","name":"019021IGSAchim_44","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"IGS Achim"},"geometry":{"type":"Point","coordinates":[9.046732207151161,53.012309904642784]}}]}

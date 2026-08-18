@@ -1,0 +1,1 @@
+var json_034Wachtelknig_39 = {"type":"FeatureCollection","name":"034Wachtelknig_39","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},"features":[{"type":"Feature","properties":{"fid":"1","Wahllokal_name":"Wachtelkönig"},"geometry":{"type":"Point","coordinates":[9.099013819023295,53.028654817151121]}}]}

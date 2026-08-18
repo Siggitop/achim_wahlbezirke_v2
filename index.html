@@ -1,0 +1,1778 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title></title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="data/Stadtgrenze_36.js"></script>
+        <script src="data/Gemarkungen_37.js"></script>
+        <script src="data/Grenze_Ost_West_38.js"></script>
+        <script src="data/034Wachtelknig_39.js"></script>
+        <script src="data/028033GrundschuleBaden_40.js"></script>
+        <script src="data/027SchtzenvereinEmbsen_41.js"></script>
+        <script src="data/026SchtzenhausAchim_42.js"></script>
+        <script src="data/022025GrundschuleUesen_43.js"></script>
+        <script src="data/019021IGSAchim_44.js"></script>
+        <script src="data/015018ALS_45.js"></script>
+        <script src="data/012014GamMa_46.js"></script>
+        <script src="data/008011GrundschuleamPaulsberg_47.js"></script>
+        <script src="data/005007GrundschuleBierden_48.js"></script>
+        <script src="data/002004GrundschuleUphusen_49.js"></script>
+        <script src="data/001HamdansRestaurant_50.js"></script>
+        <script>
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[52.980897387336846,8.980003973391574],[53.047682027712334,9.071799721388516]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/qgis2web/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    var img = popup._contentNode.querySelector('td img');
+                    if (img) {
+                        // If already loaded (cache), update immediately
+                        if (img.complete && img.naturalHeight > 0) {
+                            popup.update();
+                        } else {
+                            img.addEventListener('load', function() {
+                                popup.update();
+                            });
+                            img.addEventListener('error', function() {
+                                popup.update();
+                            });
+                        }
+                    }
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_OpenStreetMap_0');
+        map.getPane('pane_OpenStreetMap_0').style.zIndex = 400;
+        var layer_OpenStreetMap_0 = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OpenStreetMap_0',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        layer_OpenStreetMap_0;
+        map.addLayer(layer_OpenStreetMap_0);
+        map.createPane('pane_Wahlbezirk001_1');
+        map.getPane('pane_Wahlbezirk001_1').style.zIndex = 401;
+        var layer_Wahlbezirk001_1 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 001/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk001_1',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk001_1;
+        map.addLayer(layer_Wahlbezirk001_1);
+        map.createPane('pane_Wahlbezirk002_2');
+        map.getPane('pane_Wahlbezirk002_2').style.zIndex = 402;
+        var layer_Wahlbezirk002_2 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 002/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk002_2',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk002_2;
+        map.addLayer(layer_Wahlbezirk002_2);
+        map.createPane('pane_Wahlbezirk003_3');
+        map.getPane('pane_Wahlbezirk003_3').style.zIndex = 403;
+        var layer_Wahlbezirk003_3 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 003/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk003_3',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk003_3;
+        map.addLayer(layer_Wahlbezirk003_3);
+        map.createPane('pane_Wahlbezirk004_4');
+        map.getPane('pane_Wahlbezirk004_4').style.zIndex = 404;
+        var layer_Wahlbezirk004_4 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 004/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk004_4',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk004_4;
+        map.addLayer(layer_Wahlbezirk004_4);
+        map.createPane('pane_Wahlbezirk005_5');
+        map.getPane('pane_Wahlbezirk005_5').style.zIndex = 405;
+        var layer_Wahlbezirk005_5 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 005/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk005_5',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk005_5;
+        map.addLayer(layer_Wahlbezirk005_5);
+        map.createPane('pane_Wahlbezirk006_6');
+        map.getPane('pane_Wahlbezirk006_6').style.zIndex = 406;
+        var layer_Wahlbezirk006_6 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 006/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk006_6',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk006_6;
+        map.addLayer(layer_Wahlbezirk006_6);
+        map.createPane('pane_Wahlbezirk007_7');
+        map.getPane('pane_Wahlbezirk007_7').style.zIndex = 407;
+        var layer_Wahlbezirk007_7 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 007/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk007_7',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk007_7;
+        map.addLayer(layer_Wahlbezirk007_7);
+        map.createPane('pane_Wahlbezirk008_8');
+        map.getPane('pane_Wahlbezirk008_8').style.zIndex = 408;
+        var layer_Wahlbezirk008_8 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 008/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk008_8',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk008_8;
+        map.addLayer(layer_Wahlbezirk008_8);
+        map.createPane('pane_Wahlbezirk009_9');
+        map.getPane('pane_Wahlbezirk009_9').style.zIndex = 409;
+        var layer_Wahlbezirk009_9 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 009/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk009_9',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk009_9;
+        map.addLayer(layer_Wahlbezirk009_9);
+        map.createPane('pane_Wahlbezirk010_10');
+        map.getPane('pane_Wahlbezirk010_10').style.zIndex = 410;
+        var layer_Wahlbezirk010_10 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 010/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk010_10',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk010_10;
+        map.addLayer(layer_Wahlbezirk010_10);
+        map.createPane('pane_Wahlbezirk011_11');
+        map.getPane('pane_Wahlbezirk011_11').style.zIndex = 411;
+        var layer_Wahlbezirk011_11 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 011/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk011_11',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk011_11;
+        map.addLayer(layer_Wahlbezirk011_11);
+        map.createPane('pane_Wahlbezirk012_12');
+        map.getPane('pane_Wahlbezirk012_12').style.zIndex = 412;
+        var layer_Wahlbezirk012_12 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 012/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk012_12',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk012_12;
+        map.addLayer(layer_Wahlbezirk012_12);
+        map.createPane('pane_Wahlbezirk013_13');
+        map.getPane('pane_Wahlbezirk013_13').style.zIndex = 413;
+        var layer_Wahlbezirk013_13 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 013/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk013_13',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk013_13;
+        map.addLayer(layer_Wahlbezirk013_13);
+        map.createPane('pane_Wahlbezirk014_14');
+        map.getPane('pane_Wahlbezirk014_14').style.zIndex = 414;
+        var layer_Wahlbezirk014_14 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 014/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk014_14',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk014_14;
+        map.addLayer(layer_Wahlbezirk014_14);
+        map.createPane('pane_Wahlbezirk015_15');
+        map.getPane('pane_Wahlbezirk015_15').style.zIndex = 415;
+        var layer_Wahlbezirk015_15 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 015/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk015_15',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk015_15;
+        map.addLayer(layer_Wahlbezirk015_15);
+        map.createPane('pane_Wahlbezirk016_16');
+        map.getPane('pane_Wahlbezirk016_16').style.zIndex = 416;
+        var layer_Wahlbezirk016_16 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 016/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk016_16',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk016_16;
+        map.addLayer(layer_Wahlbezirk016_16);
+        map.createPane('pane_Wahlbezirk017_17');
+        map.getPane('pane_Wahlbezirk017_17').style.zIndex = 417;
+        var layer_Wahlbezirk017_17 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 017/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk017_17',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk017_17;
+        map.addLayer(layer_Wahlbezirk017_17);
+        map.createPane('pane_Wahlbezirk018_18');
+        map.getPane('pane_Wahlbezirk018_18').style.zIndex = 418;
+        var layer_Wahlbezirk018_18 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 018/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk018_18',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk018_18;
+        map.addLayer(layer_Wahlbezirk018_18);
+        map.createPane('pane_Wahlbezirk019_19');
+        map.getPane('pane_Wahlbezirk019_19').style.zIndex = 419;
+        var layer_Wahlbezirk019_19 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 019/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk019_19',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk019_19;
+        map.addLayer(layer_Wahlbezirk019_19);
+        map.createPane('pane_Wahlbezirk020_20');
+        map.getPane('pane_Wahlbezirk020_20').style.zIndex = 420;
+        var layer_Wahlbezirk020_20 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 020/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk020_20',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk020_20;
+        map.addLayer(layer_Wahlbezirk020_20);
+        map.createPane('pane_Wahlbezirk021_21');
+        map.getPane('pane_Wahlbezirk021_21').style.zIndex = 421;
+        var layer_Wahlbezirk021_21 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 021/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk021_21',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk021_21;
+        map.addLayer(layer_Wahlbezirk021_21);
+        map.createPane('pane_Wahlbezirk022_22');
+        map.getPane('pane_Wahlbezirk022_22').style.zIndex = 422;
+        var layer_Wahlbezirk022_22 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 022/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk022_22',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk022_22;
+        map.addLayer(layer_Wahlbezirk022_22);
+        map.createPane('pane_Wahlbezirk023_23');
+        map.getPane('pane_Wahlbezirk023_23').style.zIndex = 423;
+        var layer_Wahlbezirk023_23 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 023/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk023_23',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk023_23;
+        map.addLayer(layer_Wahlbezirk023_23);
+        map.createPane('pane_Wahlbezirk024_24');
+        map.getPane('pane_Wahlbezirk024_24').style.zIndex = 424;
+        var layer_Wahlbezirk024_24 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 024/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk024_24',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk024_24;
+        map.addLayer(layer_Wahlbezirk024_24);
+        map.createPane('pane_Wahlbezirk025_25');
+        map.getPane('pane_Wahlbezirk025_25').style.zIndex = 425;
+        var layer_Wahlbezirk025_25 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 025/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk025_25',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk025_25;
+        map.addLayer(layer_Wahlbezirk025_25);
+        map.createPane('pane_Wahlbezirk026_26');
+        map.getPane('pane_Wahlbezirk026_26').style.zIndex = 426;
+        var layer_Wahlbezirk026_26 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 026/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk026_26',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk026_26;
+        map.addLayer(layer_Wahlbezirk026_26);
+        map.createPane('pane_Wahlbezirk027_27');
+        map.getPane('pane_Wahlbezirk027_27').style.zIndex = 427;
+        var layer_Wahlbezirk027_27 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 027/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk027_27',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk027_27;
+        map.addLayer(layer_Wahlbezirk027_27);
+        map.createPane('pane_Wahlbezirk028_28');
+        map.getPane('pane_Wahlbezirk028_28').style.zIndex = 428;
+        var layer_Wahlbezirk028_28 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 028/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk028_28',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk028_28;
+        map.addLayer(layer_Wahlbezirk028_28);
+        map.createPane('pane_Wahlbezirk029_29');
+        map.getPane('pane_Wahlbezirk029_29').style.zIndex = 429;
+        var layer_Wahlbezirk029_29 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 029/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk029_29',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk029_29;
+        map.addLayer(layer_Wahlbezirk029_29);
+        map.createPane('pane_Wahlbezirk030_30');
+        map.getPane('pane_Wahlbezirk030_30').style.zIndex = 430;
+        var layer_Wahlbezirk030_30 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 030/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk030_30',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk030_30;
+        map.addLayer(layer_Wahlbezirk030_30);
+        map.createPane('pane_Wahlbezirk031_31');
+        map.getPane('pane_Wahlbezirk031_31').style.zIndex = 431;
+        var layer_Wahlbezirk031_31 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 031/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk031_31',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk031_31;
+        map.addLayer(layer_Wahlbezirk031_31);
+        map.createPane('pane_Wahlbezirk032_32');
+        map.getPane('pane_Wahlbezirk032_32').style.zIndex = 432;
+        var layer_Wahlbezirk032_32 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 032/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk032_32',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk032_32;
+        map.addLayer(layer_Wahlbezirk032_32);
+        map.createPane('pane_Wahlbezirk033_33');
+        map.getPane('pane_Wahlbezirk033_33').style.zIndex = 433;
+        var layer_Wahlbezirk033_33 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 033/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk033_33',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk033_33;
+        map.addLayer(layer_Wahlbezirk033_33);
+        map.createPane('pane_Wahlbezirk034_34');
+        map.getPane('pane_Wahlbezirk034_34').style.zIndex = 434;
+        var layer_Wahlbezirk034_34 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Wahlbezirk 034/{z}/{x}/{y}.png', {
+            pane: 'pane_Wahlbezirk034_34',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_Wahlbezirk034_34;
+        map.addLayer(layer_Wahlbezirk034_34);
+        map.createPane('pane_GebudeStraen_35');
+        map.getPane('pane_GebudeStraen_35').style.zIndex = 435;
+        var layer_GebudeStraen_35 = L.tileLayer('file:///Users/matthiasbraeuer/Documents/Ines/CDU/Wahlbezirke_Karte/xyz_tiles/Overlays/{z}/{x}/{y}.png', {
+            pane: 'pane_GebudeStraen_35',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 10,
+            maxNativeZoom: 20
+        });
+        layer_GebudeStraen_35;
+        map.addLayer(layer_GebudeStraen_35);
+        function pop_Stadtgrenze_36(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Stadtgrenze_36_0() {
+            return {
+                pane: 'pane_Stadtgrenze_36',
+                opacity: 1,
+                color: 'rgba(255,16,0,1.0)',
+                dashArray: '24.0,12.0',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 6.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_Stadtgrenze_36');
+        map.getPane('pane_Stadtgrenze_36').style.zIndex = 436;
+        map.getPane('pane_Stadtgrenze_36').style['mix-blend-mode'] = 'normal';
+        var layer_Stadtgrenze_36 = new L.geoJson(json_Stadtgrenze_36, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_Stadtgrenze_36',
+            layerName: 'layer_Stadtgrenze_36',
+            pane: 'pane_Stadtgrenze_36',
+            onEachFeature: pop_Stadtgrenze_36,
+            style: style_Stadtgrenze_36_0,
+        });
+        bounds_group.addLayer(layer_Stadtgrenze_36);
+        map.addLayer(layer_Stadtgrenze_36);
+        function pop_Gemarkungen_37(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Gemarkungen_37_0() {
+            return {
+                pane: 'pane_Gemarkungen_37',
+                opacity: 1,
+                color: 'rgba(255,255,255,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'round',
+                weight: 3.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_Gemarkungen_37');
+        map.getPane('pane_Gemarkungen_37').style.zIndex = 437;
+        map.getPane('pane_Gemarkungen_37').style['mix-blend-mode'] = 'normal';
+        var layer_Gemarkungen_37 = new L.geoJson(json_Gemarkungen_37, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_Gemarkungen_37',
+            layerName: 'layer_Gemarkungen_37',
+            pane: 'pane_Gemarkungen_37',
+            onEachFeature: pop_Gemarkungen_37,
+            style: style_Gemarkungen_37_0,
+        });
+        bounds_group.addLayer(layer_Gemarkungen_37);
+        map.addLayer(layer_Gemarkungen_37);
+        function pop_Grenze_Ost_West_38(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Grenze_Ost_West_38_0() {
+            return {
+                pane: 'pane_Grenze_Ost_West_38',
+                opacity: 1,
+                color: 'rgba(255,20,0,1.0)',
+                dashArray: '24.0,12.0',
+                lineCap: 'butt',
+                lineJoin: 'round',
+                weight: 6.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_Grenze_Ost_West_38');
+        map.getPane('pane_Grenze_Ost_West_38').style.zIndex = 438;
+        map.getPane('pane_Grenze_Ost_West_38').style['mix-blend-mode'] = 'normal';
+        var layer_Grenze_Ost_West_38 = new L.geoJson(json_Grenze_Ost_West_38, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_Grenze_Ost_West_38',
+            layerName: 'layer_Grenze_Ost_West_38',
+            pane: 'pane_Grenze_Ost_West_38',
+            onEachFeature: pop_Grenze_Ost_West_38,
+            style: style_Grenze_Ost_West_38_0,
+        });
+        bounds_group.addLayer(layer_Grenze_Ost_West_38);
+        map.addLayer(layer_Grenze_Ost_West_38);
+        function pop_034Wachtelknig_39(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_034Wachtelknig_39_0() {
+            return {
+                pane: 'pane_034Wachtelknig_39',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/034Wachtelknig_39.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_034Wachtelknig_39');
+        map.getPane('pane_034Wachtelknig_39').style.zIndex = 439;
+        map.getPane('pane_034Wachtelknig_39').style['mix-blend-mode'] = 'normal';
+        var layer_034Wachtelknig_39 = new L.geoJson(json_034Wachtelknig_39, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_034Wachtelknig_39',
+            layerName: 'layer_034Wachtelknig_39',
+            pane: 'pane_034Wachtelknig_39',
+            onEachFeature: pop_034Wachtelknig_39,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_034Wachtelknig_39_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_034Wachtelknig_39);
+        map.addLayer(layer_034Wachtelknig_39);
+        function pop_028033GrundschuleBaden_40(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_028033GrundschuleBaden_40_0() {
+            return {
+                pane: 'pane_028033GrundschuleBaden_40',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/028033GrundschuleBaden_40.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_028033GrundschuleBaden_40');
+        map.getPane('pane_028033GrundschuleBaden_40').style.zIndex = 440;
+        map.getPane('pane_028033GrundschuleBaden_40').style['mix-blend-mode'] = 'normal';
+        var layer_028033GrundschuleBaden_40 = new L.geoJson(json_028033GrundschuleBaden_40, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_028033GrundschuleBaden_40',
+            layerName: 'layer_028033GrundschuleBaden_40',
+            pane: 'pane_028033GrundschuleBaden_40',
+            onEachFeature: pop_028033GrundschuleBaden_40,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_028033GrundschuleBaden_40_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_028033GrundschuleBaden_40);
+        map.addLayer(layer_028033GrundschuleBaden_40);
+        function pop_027SchtzenvereinEmbsen_41(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_027SchtzenvereinEmbsen_41_0() {
+            return {
+                pane: 'pane_027SchtzenvereinEmbsen_41',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/027SchtzenvereinEmbsen_41.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_027SchtzenvereinEmbsen_41');
+        map.getPane('pane_027SchtzenvereinEmbsen_41').style.zIndex = 441;
+        map.getPane('pane_027SchtzenvereinEmbsen_41').style['mix-blend-mode'] = 'normal';
+        var layer_027SchtzenvereinEmbsen_41 = new L.geoJson(json_027SchtzenvereinEmbsen_41, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_027SchtzenvereinEmbsen_41',
+            layerName: 'layer_027SchtzenvereinEmbsen_41',
+            pane: 'pane_027SchtzenvereinEmbsen_41',
+            onEachFeature: pop_027SchtzenvereinEmbsen_41,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_027SchtzenvereinEmbsen_41_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_027SchtzenvereinEmbsen_41);
+        map.addLayer(layer_027SchtzenvereinEmbsen_41);
+        function pop_026SchtzenhausAchim_42(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_026SchtzenhausAchim_42_0() {
+            return {
+                pane: 'pane_026SchtzenhausAchim_42',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/026SchtzenhausAchim_42.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_026SchtzenhausAchim_42');
+        map.getPane('pane_026SchtzenhausAchim_42').style.zIndex = 442;
+        map.getPane('pane_026SchtzenhausAchim_42').style['mix-blend-mode'] = 'normal';
+        var layer_026SchtzenhausAchim_42 = new L.geoJson(json_026SchtzenhausAchim_42, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_026SchtzenhausAchim_42',
+            layerName: 'layer_026SchtzenhausAchim_42',
+            pane: 'pane_026SchtzenhausAchim_42',
+            onEachFeature: pop_026SchtzenhausAchim_42,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_026SchtzenhausAchim_42_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_026SchtzenhausAchim_42);
+        map.addLayer(layer_026SchtzenhausAchim_42);
+        function pop_022025GrundschuleUesen_43(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_022025GrundschuleUesen_43_0() {
+            return {
+                pane: 'pane_022025GrundschuleUesen_43',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/022025GrundschuleUesen_43.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_022025GrundschuleUesen_43');
+        map.getPane('pane_022025GrundschuleUesen_43').style.zIndex = 443;
+        map.getPane('pane_022025GrundschuleUesen_43').style['mix-blend-mode'] = 'normal';
+        var layer_022025GrundschuleUesen_43 = new L.geoJson(json_022025GrundschuleUesen_43, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_022025GrundschuleUesen_43',
+            layerName: 'layer_022025GrundschuleUesen_43',
+            pane: 'pane_022025GrundschuleUesen_43',
+            onEachFeature: pop_022025GrundschuleUesen_43,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_022025GrundschuleUesen_43_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_022025GrundschuleUesen_43);
+        map.addLayer(layer_022025GrundschuleUesen_43);
+        function pop_019021IGSAchim_44(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_019021IGSAchim_44_0() {
+            return {
+                pane: 'pane_019021IGSAchim_44',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/019021IGSAchim_44.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_019021IGSAchim_44');
+        map.getPane('pane_019021IGSAchim_44').style.zIndex = 444;
+        map.getPane('pane_019021IGSAchim_44').style['mix-blend-mode'] = 'normal';
+        var layer_019021IGSAchim_44 = new L.geoJson(json_019021IGSAchim_44, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_019021IGSAchim_44',
+            layerName: 'layer_019021IGSAchim_44',
+            pane: 'pane_019021IGSAchim_44',
+            onEachFeature: pop_019021IGSAchim_44,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_019021IGSAchim_44_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_019021IGSAchim_44);
+        map.addLayer(layer_019021IGSAchim_44);
+        function pop_015018ALS_45(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_015018ALS_45_0() {
+            return {
+                pane: 'pane_015018ALS_45',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/015018ALS_45.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_015018ALS_45');
+        map.getPane('pane_015018ALS_45').style.zIndex = 445;
+        map.getPane('pane_015018ALS_45').style['mix-blend-mode'] = 'normal';
+        var layer_015018ALS_45 = new L.geoJson(json_015018ALS_45, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_015018ALS_45',
+            layerName: 'layer_015018ALS_45',
+            pane: 'pane_015018ALS_45',
+            onEachFeature: pop_015018ALS_45,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_015018ALS_45_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_015018ALS_45);
+        map.addLayer(layer_015018ALS_45);
+        function pop_012014GamMa_46(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_012014GamMa_46_0() {
+            return {
+                pane: 'pane_012014GamMa_46',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/012014GamMa_46.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_012014GamMa_46');
+        map.getPane('pane_012014GamMa_46').style.zIndex = 446;
+        map.getPane('pane_012014GamMa_46').style['mix-blend-mode'] = 'normal';
+        var layer_012014GamMa_46 = new L.geoJson(json_012014GamMa_46, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_012014GamMa_46',
+            layerName: 'layer_012014GamMa_46',
+            pane: 'pane_012014GamMa_46',
+            onEachFeature: pop_012014GamMa_46,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_012014GamMa_46_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_012014GamMa_46);
+        map.addLayer(layer_012014GamMa_46);
+        function pop_008011GrundschuleamPaulsberg_47(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_008011GrundschuleamPaulsberg_47_0() {
+            return {
+                pane: 'pane_008011GrundschuleamPaulsberg_47',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/008011GrundschuleamPaulsberg_47.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_008011GrundschuleamPaulsberg_47');
+        map.getPane('pane_008011GrundschuleamPaulsberg_47').style.zIndex = 447;
+        map.getPane('pane_008011GrundschuleamPaulsberg_47').style['mix-blend-mode'] = 'normal';
+        var layer_008011GrundschuleamPaulsberg_47 = new L.geoJson(json_008011GrundschuleamPaulsberg_47, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_008011GrundschuleamPaulsberg_47',
+            layerName: 'layer_008011GrundschuleamPaulsberg_47',
+            pane: 'pane_008011GrundschuleamPaulsberg_47',
+            onEachFeature: pop_008011GrundschuleamPaulsberg_47,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_008011GrundschuleamPaulsberg_47_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_008011GrundschuleamPaulsberg_47);
+        map.addLayer(layer_008011GrundschuleamPaulsberg_47);
+        function pop_005007GrundschuleBierden_48(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_005007GrundschuleBierden_48_0() {
+            return {
+                pane: 'pane_005007GrundschuleBierden_48',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/005007GrundschuleBierden_48.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_005007GrundschuleBierden_48');
+        map.getPane('pane_005007GrundschuleBierden_48').style.zIndex = 448;
+        map.getPane('pane_005007GrundschuleBierden_48').style['mix-blend-mode'] = 'normal';
+        var layer_005007GrundschuleBierden_48 = new L.geoJson(json_005007GrundschuleBierden_48, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_005007GrundschuleBierden_48',
+            layerName: 'layer_005007GrundschuleBierden_48',
+            pane: 'pane_005007GrundschuleBierden_48',
+            onEachFeature: pop_005007GrundschuleBierden_48,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_005007GrundschuleBierden_48_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_005007GrundschuleBierden_48);
+        map.addLayer(layer_005007GrundschuleBierden_48);
+        function pop_002004GrundschuleUphusen_49(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_002004GrundschuleUphusen_49_0() {
+            return {
+                pane: 'pane_002004GrundschuleUphusen_49',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/002004GrundschuleUphusen_49.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_002004GrundschuleUphusen_49');
+        map.getPane('pane_002004GrundschuleUphusen_49').style.zIndex = 449;
+        map.getPane('pane_002004GrundschuleUphusen_49').style['mix-blend-mode'] = 'normal';
+        var layer_002004GrundschuleUphusen_49 = new L.geoJson(json_002004GrundschuleUphusen_49, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_002004GrundschuleUphusen_49',
+            layerName: 'layer_002004GrundschuleUphusen_49',
+            pane: 'pane_002004GrundschuleUphusen_49',
+            onEachFeature: pop_002004GrundschuleUphusen_49,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_002004GrundschuleUphusen_49_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_002004GrundschuleUphusen_49);
+        map.addLayer(layer_002004GrundschuleUphusen_49);
+        function pop_001HamdansRestaurant_50(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_001HamdansRestaurant_50_0() {
+            return {
+                pane: 'pane_001HamdansRestaurant_50',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/001HamdansRestaurant_50.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+        }
+        map.createPane('pane_001HamdansRestaurant_50');
+        map.getPane('pane_001HamdansRestaurant_50').style.zIndex = 450;
+        map.getPane('pane_001HamdansRestaurant_50').style['mix-blend-mode'] = 'normal';
+        var layer_001HamdansRestaurant_50 = new L.geoJson(json_001HamdansRestaurant_50, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_001HamdansRestaurant_50',
+            layerName: 'layer_001HamdansRestaurant_50',
+            pane: 'pane_001HamdansRestaurant_50',
+            onEachFeature: pop_001HamdansRestaurant_50,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_001HamdansRestaurant_50_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_001HamdansRestaurant_50);
+        map.addLayer(layer_001HamdansRestaurant_50);
+        const url = {"Nominatim OSM": "https://nominatim.openstreetmap.org/search?format=geojson&addressdetails=1&",
+        "France BAN": "https://api-adresse.data.gouv.fr/search/?"}
+        var photonControl = L.control.photon({
+            url: url["Nominatim OSM"],
+            feedbackLabel: '',
+            position: 'topleft',
+            includePosition: true,
+            initial: true,
+            // resultsHandler: myHandler,
+        }).addTo(map);
+        photonControl._container.childNodes[0].style.borderRadius="10px"
+        // Create a variable to store the geoJSON data
+        var x = null;
+        // Create a variable to store the marker
+        var marker = null;
+        // Add an event listener to the Photon control to create a marker from the returned geoJSON data
+        var z = null;
+        photonControl.on('selected', function(e) {
+            console.log(photonControl.search.resultsContainer);
+            if (x != null) {
+                map.removeLayer(obj3.marker);
+                map.removeLayer(x);
+            }
+            obj2.gcd = e.choice;
+            x = L.geoJSON(obj2.gcd).addTo(map);
+            var label = typeof obj2.gcd.properties.label === 'undefined' ? obj2.gcd.properties.display_name : obj2.gcd.properties.label;
+            obj3.marker = L.marker(x.getLayers()[0].getLatLng()).bindPopup(label).addTo(map);
+            map.setView(x.getLayers()[0].getLatLng(), 17);
+            z = typeof e.choice.properties.label === 'undefined'? e.choice.properties.display_name : e.choice.properties.label;
+            console.log(e);
+            e.target.input.value = z;
+        });
+        var search = document.getElementsByClassName("leaflet-photon leaflet-control")[0];
+        search.classList.add("leaflet-control-search")
+        search.style.display = "flex";
+        search.style.backgroundColor="rgba(255,255,255,0.5)" 
+
+        // Create the new button element
+        var button = document.createElement("div");
+        button.id = "gcd-button-control";
+        button.className = "gcd-gl-btn fa fa-search search-button";
+
+        // Insert the button at the beginning of the search control
+        search.insertBefore(button, search.firstChild);
+        last = search.lastChild;
+        last.style.display = "none";
+        button.addEventListener("click", function (e) {
+            if (last.style.display === "none") {
+                last.style.display = "block";
+            } else {
+                last.style.display = "none";
+            }
+        });
+        var overlaysTree = [
+        {label: '<b>Wahllokale</b>', collapsed: true, selectAllCheckbox: true, children: [
+            {label: '<img src="legend/001HamdansRestaurant_50.png" /> 001 Hamdans Restaurant', layer: layer_001HamdansRestaurant_50},
+            {label: '<img src="legend/002004GrundschuleUphusen_49.png" /> 002-004 Grundschule Uphusen', layer: layer_002004GrundschuleUphusen_49},
+            {label: '<img src="legend/005007GrundschuleBierden_48.png" /> 005-007 Grundschule Bierden', layer: layer_005007GrundschuleBierden_48},
+            {label: '<img src="legend/008011GrundschuleamPaulsberg_47.png" /> 008-011 Grundschule am Paulsberg', layer: layer_008011GrundschuleamPaulsberg_47},
+            {label: '<img src="legend/012014GamMa_46.png" /> 012-014 GamMa', layer: layer_012014GamMa_46},
+            {label: '<img src="legend/015018ALS_45.png" /> 015-018 ALS', layer: layer_015018ALS_45},
+            {label: '<img src="legend/019021IGSAchim_44.png" /> 019-021 IGS Achim', layer: layer_019021IGSAchim_44},
+            {label: '<img src="legend/022025GrundschuleUesen_43.png" /> 022-025 Grundschule Uesen', layer: layer_022025GrundschuleUesen_43},
+            {label: '<img src="legend/026SchtzenhausAchim_42.png" /> 026 Schützenhaus Achim', layer: layer_026SchtzenhausAchim_42},
+            {label: '<img src="legend/027SchtzenvereinEmbsen_41.png" /> 027 Schützenverein Embsen', layer: layer_027SchtzenvereinEmbsen_41},
+            {label: '<img src="legend/028033GrundschuleBaden_40.png" /> 028-033 Grundschule Baden', layer: layer_028033GrundschuleBaden_40},
+            {label: '<img src="legend/034Wachtelknig_39.png" /> 034 Wachtelkönig', layer: layer_034Wachtelknig_39},]},
+        {label: '<b>Grenzen</b>', collapsed: true, selectAllCheckbox: true, children: [
+            {label: '<img src="legend/Grenze_Ost_West_38.png" /> Grenze_Ost_West', layer: layer_Grenze_Ost_West_38},
+            {label: '<img src="legend/Gemarkungen_37.png" /> Gemarkungen', layer: layer_Gemarkungen_37},
+            {label: '<img src="legend/Stadtgrenze_36.png" /> Stadtgrenze', layer: layer_Stadtgrenze_36},]},
+        {label: '<b>Overlays</b>',  selectAllCheckbox: true, children: [
+            {label: "Gebäude, Straßen", layer: layer_GebudeStraen_35},]},
+        {label: '<b>Achim Ost</b>', collapsed: true, selectAllCheckbox: true, children: [
+            {label: "Wahlbezirk 034", layer: layer_Wahlbezirk034_34},
+            {label: "Wahlbezirk 033", layer: layer_Wahlbezirk033_33},
+            {label: "Wahlbezirk 032", layer: layer_Wahlbezirk032_32},
+            {label: "Wahlbezirk 031", layer: layer_Wahlbezirk031_31},
+            {label: "Wahlbezirk 030", layer: layer_Wahlbezirk030_30},
+            {label: "Wahlbezirk 029", layer: layer_Wahlbezirk029_29},
+            {label: "Wahlbezirk 028", layer: layer_Wahlbezirk028_28},
+            {label: "Wahlbezirk 027", layer: layer_Wahlbezirk027_27},
+            {label: "Wahlbezirk 026", layer: layer_Wahlbezirk026_26},
+            {label: "Wahlbezirk 025", layer: layer_Wahlbezirk025_25},
+            {label: "Wahlbezirk 024", layer: layer_Wahlbezirk024_24},
+            {label: "Wahlbezirk 023", layer: layer_Wahlbezirk023_23},
+            {label: "Wahlbezirk 022", layer: layer_Wahlbezirk022_22},
+            {label: "Wahlbezirk 021", layer: layer_Wahlbezirk021_21},
+            {label: "Wahlbezirk 020", layer: layer_Wahlbezirk020_20},
+            {label: "Wahlbezirk 019", layer: layer_Wahlbezirk019_19},]},
+        {label: '<b>Achim West</b>', collapsed: true, selectAllCheckbox: true, children: [
+            {label: "Wahlbezirk 018", layer: layer_Wahlbezirk018_18},
+            {label: "Wahlbezirk 017", layer: layer_Wahlbezirk017_17},
+            {label: "Wahlbezirk 016", layer: layer_Wahlbezirk016_16},
+            {label: "Wahlbezirk 015", layer: layer_Wahlbezirk015_15},
+            {label: "Wahlbezirk 014", layer: layer_Wahlbezirk014_14},
+            {label: "Wahlbezirk 013", layer: layer_Wahlbezirk013_13},
+            {label: "Wahlbezirk 012", layer: layer_Wahlbezirk012_12},
+            {label: "Wahlbezirk 011", layer: layer_Wahlbezirk011_11},
+            {label: "Wahlbezirk 010", layer: layer_Wahlbezirk010_10},
+            {label: "Wahlbezirk 009", layer: layer_Wahlbezirk009_9},
+            {label: "Wahlbezirk 008", layer: layer_Wahlbezirk008_8},
+            {label: "Wahlbezirk 007", layer: layer_Wahlbezirk007_7},
+            {label: "Wahlbezirk 006", layer: layer_Wahlbezirk006_6},
+            {label: "Wahlbezirk 005", layer: layer_Wahlbezirk005_5},
+            {label: "Wahlbezirk 004", layer: layer_Wahlbezirk004_4},
+            {label: "Wahlbezirk 003", layer: layer_Wahlbezirk003_3},
+            {label: "Wahlbezirk 002", layer: layer_Wahlbezirk002_2},
+            {label: "Wahlbezirk 001", layer: layer_Wahlbezirk001_1},]},
+        {label: '<b>Grundkarte</b>', collapsed: true, selectAllCheckbox: true, children: [
+            {label: "OpenStreetMap", layer: layer_OpenStreetMap_0},]},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: true,
+        });
+        lay.addTo(map);
+        map.on("zoomend", function(){
+
+                if (map.hasLayer(layer_034Wachtelknig_39)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_034Wachtelknig_39.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_034Wachtelknig_39.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_028033GrundschuleBaden_40)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_028033GrundschuleBaden_40.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_028033GrundschuleBaden_40.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_027SchtzenvereinEmbsen_41)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_027SchtzenvereinEmbsen_41.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_027SchtzenvereinEmbsen_41.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_026SchtzenhausAchim_42)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_026SchtzenhausAchim_42.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_026SchtzenhausAchim_42.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_022025GrundschuleUesen_43)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_022025GrundschuleUesen_43.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_022025GrundschuleUesen_43.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_019021IGSAchim_44)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_019021IGSAchim_44.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_019021IGSAchim_44.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_015018ALS_45)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_015018ALS_45.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_015018ALS_45.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_012014GamMa_46)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_012014GamMa_46.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_012014GamMa_46.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_008011GrundschuleamPaulsberg_47)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_008011GrundschuleamPaulsberg_47.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_008011GrundschuleamPaulsberg_47.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_005007GrundschuleBierden_48)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_005007GrundschuleBierden_48.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_005007GrundschuleBierden_48.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_002004GrundschuleUphusen_49)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_002004GrundschuleUphusen_49.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_002004GrundschuleUphusen_49.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_001HamdansRestaurant_50)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_001HamdansRestaurant_50.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_001HamdansRestaurant_50.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+        });
+        setBounds();
+        var i = 0;
+        layer_034Wachtelknig_39.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_034Wachtelknig_39'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_028033GrundschuleBaden_40.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_028033GrundschuleBaden_40'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_027SchtzenvereinEmbsen_41.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_027SchtzenvereinEmbsen_41'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_026SchtzenhausAchim_42.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_026SchtzenhausAchim_42'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_022025GrundschuleUesen_43.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_022025GrundschuleUesen_43'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_019021IGSAchim_44.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_019021IGSAchim_44'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_015018ALS_45.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_015018ALS_45'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_012014GamMa_46.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_012014GamMa_46'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_008011GrundschuleamPaulsberg_47.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_008011GrundschuleamPaulsberg_47'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_005007GrundschuleBierden_48.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_005007GrundschuleBierden_48'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_002004GrundschuleUphusen_49.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_002004GrundschuleUphusen_49'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_001HamdansRestaurant_50.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Wahllokal_name'] !== null?String('<div style="color: #2d3c4b; font-size: 15pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Wahllokal_name']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_001HamdansRestaurant_50'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+                if (map.hasLayer(layer_034Wachtelknig_39)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_034Wachtelknig_39.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_034Wachtelknig_39.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_028033GrundschuleBaden_40)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_028033GrundschuleBaden_40.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_028033GrundschuleBaden_40.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_027SchtzenvereinEmbsen_41)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_027SchtzenvereinEmbsen_41.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_027SchtzenvereinEmbsen_41.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_026SchtzenhausAchim_42)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_026SchtzenhausAchim_42.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_026SchtzenhausAchim_42.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_022025GrundschuleUesen_43)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_022025GrundschuleUesen_43.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_022025GrundschuleUesen_43.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_019021IGSAchim_44)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_019021IGSAchim_44.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_019021IGSAchim_44.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_015018ALS_45)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_015018ALS_45.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_015018ALS_45.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_012014GamMa_46)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_012014GamMa_46.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_012014GamMa_46.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_008011GrundschuleamPaulsberg_47)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_008011GrundschuleamPaulsberg_47.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_008011GrundschuleamPaulsberg_47.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_005007GrundschuleBierden_48)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_005007GrundschuleBierden_48.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_005007GrundschuleBierden_48.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_002004GrundschuleUphusen_49)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_002004GrundschuleUphusen_49.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_002004GrundschuleUphusen_49.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+                if (map.hasLayer(layer_001HamdansRestaurant_50)) {
+                    if (map.getZoom() <= 14 && map.getZoom() >= 19) {
+                        layer_001HamdansRestaurant_50.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_001HamdansRestaurant_50.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+        resetLabels([layer_Stadtgrenze_36,layer_034Wachtelknig_39,layer_028033GrundschuleBaden_40,layer_027SchtzenvereinEmbsen_41,layer_026SchtzenhausAchim_42,layer_022025GrundschuleUesen_43,layer_019021IGSAchim_44,layer_015018ALS_45,layer_012014GamMa_46,layer_008011GrundschuleamPaulsberg_47,layer_005007GrundschuleBierden_48,layer_002004GrundschuleUphusen_49,layer_001HamdansRestaurant_50]);
+        map.on("zoomend", function(){
+            resetLabels([layer_Stadtgrenze_36,layer_034Wachtelknig_39,layer_028033GrundschuleBaden_40,layer_027SchtzenvereinEmbsen_41,layer_026SchtzenhausAchim_42,layer_022025GrundschuleUesen_43,layer_019021IGSAchim_44,layer_015018ALS_45,layer_012014GamMa_46,layer_008011GrundschuleamPaulsberg_47,layer_005007GrundschuleBierden_48,layer_002004GrundschuleUphusen_49,layer_001HamdansRestaurant_50]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_Stadtgrenze_36,layer_034Wachtelknig_39,layer_028033GrundschuleBaden_40,layer_027SchtzenvereinEmbsen_41,layer_026SchtzenhausAchim_42,layer_022025GrundschuleUesen_43,layer_019021IGSAchim_44,layer_015018ALS_45,layer_012014GamMa_46,layer_008011GrundschuleamPaulsberg_47,layer_005007GrundschuleBierden_48,layer_002004GrundschuleUphusen_49,layer_001HamdansRestaurant_50]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_Stadtgrenze_36,layer_034Wachtelknig_39,layer_028033GrundschuleBaden_40,layer_027SchtzenvereinEmbsen_41,layer_026SchtzenhausAchim_42,layer_022025GrundschuleUesen_43,layer_019021IGSAchim_44,layer_015018ALS_45,layer_012014GamMa_46,layer_008011GrundschuleamPaulsberg_47,layer_005007GrundschuleBierden_48,layer_002004GrundschuleUphusen_49,layer_001HamdansRestaurant_50]);
+        });
+        </script>        
+    </body>
+</html>
